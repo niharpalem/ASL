@@ -3,24 +3,29 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import joblib
-import time
 from scipy.spatial.distance import euclidean
 from numpy.linalg import norm
+import matplotlib.pyplot as plt
 
-# Load the saved model and preprocessing objects
+# Load the saved models and preprocessing objects
 @st.cache_resource
-def load_model():
-    model = joblib.load('svm_model.joblib')  # Load the SVM model
+def load_models():
+    svm_model = joblib.load('svm_model.joblib')
+    lgbm_model = joblib.load('lgbm_model.joblib')
     scaler = joblib.load('scaler.joblib')
     pca = joblib.load('pca.joblib')
-    return model, scaler, pca
+    return svm_model, lgbm_model, scaler, pca
 
-model, scaler, pca = load_model()
+svm_model, lgbm_model, scaler, pca = load_models()
 
-# Initialize MediaPipe Hands
-mp_hands = mp.solutions.hands
+# Initialize and cache MediaPipe Hands
+@st.cache_resource
+def load_mediapipe_model():
+    mp_hands = mp.solutions.hands
+    return mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5)
+
+hands = load_mediapipe_model()
 mp_drawing = mp.solutions.drawing_utils
-hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5)
 
 # Function to calculate distances
 def calculate_distances(landmarks):
@@ -65,40 +70,28 @@ def calculate_angles(landmarks):
 # Streamlit app
 st.title("ASL Recognition App")
 
-# Create a placeholder for the video feed
+# Create placeholders for the video feed and results
 video_placeholder = st.empty()
-
-# Create a placeholder for the prediction
-prediction_placeholder = st.empty()
+results_placeholder = st.empty()
 
 # Start the webcam
 cap = cv2.VideoCapture(0)
 
-last_process_time = time.time()
-process_interval = 5  # seconds
-
-while True:
+# Capture and process frame
+if st.button('Capture and Predict'):
     success, image = cap.read()
     if not success:
         st.error("Failed to capture image from camera.")
-        break
+    else:
+        # Flip the image horizontally for a selfie-view display
+        image = cv2.flip(image, 1)
 
-    # Flip the image horizontally for a later selfie-view display
-    image = cv2.flip(image, 1)
+        # Convert the BGR image to RGB
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Convert the BGR image to RGB
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Process the image and get hand landmarks
+        results = hands.process(image_rgb)
 
-    # Process the image and get hand landmarks
-    results = hands.process(image_rgb)
-
-    # Draw hand landmarks on the image
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(image_rgb, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-
-    current_time = time.time()
-    if current_time - last_process_time >= process_interval:
         if results.multi_hand_landmarks:
             hand_landmarks = results.multi_hand_landmarks[0]  # Assuming only one hand
 
@@ -122,20 +115,58 @@ while True:
             # Apply PCA
             features_pca = pca.transform(features_scaled)
 
-            # Make prediction
-            prediction = model.predict(features_pca)
+            # Get predictions from both models
+            svm_prediction = svm_model.predict(features_pca)
+            svm_probabilities = svm_model.predict_proba(features_pca)[0]
+            lgbm_prediction = lgbm_model.predict(features_pca)
+            lgbm_probabilities = lgbm_model.predict_proba(features_pca)[0]
 
-            # Update prediction placeholder
-            prediction_placeholder.text(f"Predicted ASL Letter: {prediction[0]}")
+            # Concatenate results
+            combined_probabilities = (svm_probabilities + lgbm_probabilities) / 2
+            combined_prediction = np.argmax(combined_probabilities)
 
-        last_process_time = current_time
+            # Draw hand landmarks on the image
+            mp_drawing.draw_landmarks(image_rgb, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
 
-    # Update video feed
-    video_placeholder.image(image_rgb, channels="RGB")
+            # Create a figure with three subplots
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
-    # Check if the user wants to stop the app
-    if st.button('Stop'):
-        break
+            # Plot the captured frame
+            ax1.imshow(image_rgb)
+            ax1.set_title('Captured Frame')
+            ax1.axis('off')
 
-# Release the webcam
+            # Plot the extracted points in 2D space
+            ax2.scatter(landmarks[:, 0], landmarks[:, 1])
+            ax2.set_title('Extracted Points')
+            ax2.set_xlabel('X')
+            ax2.set_ylabel('Y')
+            ax2.invert_yaxis()
+
+            # Plot the word probabilities
+            alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            ax3.bar(alphabet, combined_probabilities)
+            ax3.set_title('Combined Word Probabilities')
+            ax3.set_xlabel('Letters')
+            ax3.set_ylabel('Probability')
+            ax3.tick_params(axis='x', rotation=90)
+
+            plt.tight_layout()
+
+            # Display the results
+            results_placeholder.pyplot(fig)
+
+            # Display the predicted letter
+            st.write(f"Predicted ASL Letter: {alphabet[combined_prediction]}")
+            st.write(f"SVM Prediction: {svm_prediction[0]}")
+            st.write(f"LightGBM Prediction: {alphabet[lgbm_prediction[0]]}")
+        else:
+            st.write("No hand detected in the frame.")
+
+# Check if the user wants to stop the app
+if st.button('Stop'):
+    cap.release()
+    st.stop()
+
+# Release the webcam when the script ends
 cap.release()
