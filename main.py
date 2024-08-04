@@ -152,8 +152,21 @@ if uploaded_file is not None:
         results_placeholder.pyplot(fig)
 
         # Display the predicted letter
-        st.write(f"Predicted ASL Letter: {alphabet[combined_prediction]}")
-        st.write(f"SVM Prediction: {svm_prediction[0]}")
-        st.write(f"LightGBM Prediction: {alphabet[lgbm_prediction[0]]}")
+        st.write(f"Combined Prediction: {alphabet[combined_prediction]}")
+        
+        st.write("SVM Prediction:")
+        st.write(f"- Class: {svm_prediction[0]}")
+        st.write(f"- Probabilities: {svm_probabilities}")
+        
+        st.write("LightGBM Prediction:")
+        st.write(f"- Class: {lgbm_prediction[0]}")
+        st.write(f"- Probabilities: {lgbm_probabilities}")
+        
+        # Display top 3 predictions
+        top_3_indices = np.argsort(combined_probabilities)[-3:][::-1]
+        st.write("Top 3 Predictions:")
+        for idx in top_3_indices:
+            st.write(f"{alphabet[idx]}: {combined_probabilities[idx]:.4f}")
+
     else:
         st.write("No hand detected in the image.")
