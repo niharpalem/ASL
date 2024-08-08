@@ -71,49 +71,26 @@ if uploaded_file is not None:
         # Convert angles to a feature array
         features = np.array(angles).reshape(1, -1)
 
-        # Get predictions from the Random Forest model
-        rf_prediction = rf_model.predict(features)
-        rf_probabilities = rf_model.predict_proba(features)[0]
+        # Log feature details
+        st.write("Features shape:", features.shape)
+        st.write("Features:", features)
 
-        # Draw hand landmarks on the image
-        mp_drawing.draw_landmarks(image_rgb, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
+        # Check for NaN or infinite values
+        if np.isnan(features).any() or np.isinf(features).any():
+            st.write("Invalid feature values detected.")
+        else:
+            # Get predictions from the Random Forest model
+            rf_prediction = rf_model.predict(features)
+            rf_probabilities = rf_model.predict_proba(features)[0]
 
-        # Create a figure with three subplots
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-
-        # Plot the captured frame
-        ax1.imshow(image_rgb)
-        ax1.set_title('Uploaded Image')
-        ax1.axis('off')
-
-        # Plot the extracted points in 2D space
-        ax2.scatter(landmarks[:, 0], landmarks[:, 1])
-        ax2.set_title('Extracted Points')
-        ax2.set_xlabel('X')
-        ax2.set_ylabel('Y')
-        ax2.invert_yaxis()
-
-        # Plot the word probabilities
-        alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        ax3.bar(alphabet, rf_probabilities)
-        ax3.set_title('Random Forest Word Probabilities')
-        ax3.set_xlabel('Letters')
-        ax3.set_ylabel('Probability')
-        ax3.tick_params(axis='x', rotation=90)
-
-        plt.tight_layout()
-
-        # Display the results
-        results_placeholder.pyplot(fig)
-
-        # Display the predicted letter
-        st.write(f"Random Forest Prediction: {alphabet[rf_prediction[0]]}")
-        
-        # Display top 3 predictions
-        top_3_indices = np.argsort(rf_probabilities)[-3:][::-1]
-        st.write("Top 3 Predictions:")
-        for idx in top_3_indices:
-            st.write(f"{alphabet[idx]}: {rf_probabilities[idx]:.4f}")
+            # Display the predicted letter
+            st.write(f"Random Forest Prediction: {alphabet[rf_prediction[0]]}")
+            
+            # Display top 3 predictions
+            top_3_indices = np.argsort(rf_probabilities)[-3:][::-1]
+            st.write("Top 3 Predictions:")
+            for idx in top_3_indices:
+                st.write(f"{alphabet[idx]}: {rf_probabilities[idx]:.4f}")
 
     else:
         st.write("No hand detected in the image.")
