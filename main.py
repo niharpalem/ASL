@@ -21,6 +21,21 @@ def load_mediapipe_model():
 hands = load_mediapipe_model()
 mp_drawing = mp.solutions.drawing_utils
 
+# Function to normalize landmarks
+def normalize_landmarks(landmarks):
+    # Center the landmarks
+    center = np.mean(landmarks, axis=0)
+    landmarks_centered = landmarks - center
+
+    # Scale the landmarks
+    max_distance = np.max(np.linalg.norm(landmarks_centered, axis=1))
+    if max_distance > 0:
+        landmarks_normalized = landmarks_centered / max_distance
+    else:
+        landmarks_normalized = landmarks_centered
+
+    return landmarks_normalized
+
 # Function to calculate angles between landmarks
 def calculate_angles(landmarks):
     angles = []
@@ -52,11 +67,12 @@ if uploaded_file is not None:
                 # Draw landmarks on the image
                 mp_drawing.draw_landmarks(image, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
                 
-                # Extract landmarks
+                # Extract and normalize landmarks
                 landmarks = np.array([[lm.x, lm.y] for lm in hand_landmarks.landmark])
+                landmarks_normalized = normalize_landmarks(landmarks)
                 
-                # Calculate angles
-                angles = calculate_angles(landmarks)
+                # Calculate angles using normalized landmarks
+                angles = calculate_angles(landmarks_normalized)
                 
                 # Prepare input with feature names
                 angle_columns = [f'angle_{i}' for i in range(len(angles))]
