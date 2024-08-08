@@ -6,11 +6,31 @@ import joblib
 import pandas as pd
 from numpy.linalg import norm
 
-# Load the trained Random Forest model
-try:
-    model = joblib.load('best_random_forest_model.pkl')
-except Exception as e:
-    st.error(f"Error loading model: {e}")
+# Function to load the Random Forest model for angle features
+@st.cache_resource
+def load_angle_model():
+    try:
+        return joblib.load('best_random_forest_model.pkl')
+    except Exception as e:
+        st.error(f"Error loading angle model: {e}")
+        return None
+
+# Function to load the Random Forest model for distance features
+@st.cache_resource
+def load_distance_model():
+    try:
+        return joblib.load('distance_model.pkl')
+    except Exception as e:
+        st.error(f"Error loading distance model: {e}")
+        return None
+
+# Load models using the cached functions
+angle_model = load_angle_model()
+distance_model = load_distance_model()
+
+# Ensure models are loaded before proceeding
+if angle_model is None or distance_model is None:
+    st.stop()
 
 # Initialize MediaPipe Hands
 @st.cache_resource
@@ -23,17 +43,13 @@ mp_drawing = mp.solutions.drawing_utils
 
 # Function to normalize landmarks
 def normalize_landmarks(landmarks):
-    # Center the landmarks
     center = np.mean(landmarks, axis=0)
     landmarks_centered = landmarks - center
-
-    # Scale the landmarks
     max_distance = np.max(np.linalg.norm(landmarks_centered, axis=1))
     if max_distance > 0:
         landmarks_normalized = landmarks_centered / max_distance
     else:
         landmarks_normalized = landmarks_centered
-
     return landmarks_normalized
 
 # Function to calculate angles between landmarks
@@ -78,18 +94,14 @@ if uploaded_file is not None:
                 angle_columns = [f'angle_{i}' for i in range(len(angles))]
                 angles_df = pd.DataFrame([angles], columns=angle_columns)
                 
-                # Debugging: Check the shape and content of angles_df
-                st.write("Angles DataFrame Shape:", angles_df.shape)
-                st.write("Angles DataFrame Content:", angles_df.head())
-                
-                # Predict the alphabet
-                probabilities = model.predict_proba(angles_df)[0]
+                # Predict the alphabet using the angle model
+                probabilities = angle_model.predict_proba(angles_df)[0]
                 top_indices = np.argsort(probabilities)[::-1][:5]
                 top_probabilities = probabilities[top_indices]
-                top_classes = model.classes_[top_indices]
+                top_classes = angle_model.classes_[top_indices]
                 
                 # Display the top 5 predictions
-                st.write("Top 5 Predicted Alphabets:")
+                st.write("Top 5 Predicted Alphabets (Angle Model):")
                 for i in range(5):
                     st.write(f"{top_classes[i]}: {top_probabilities[i]:.2f}")
             
