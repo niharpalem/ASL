@@ -6,30 +6,20 @@ import joblib
 import pandas as pd
 from numpy.linalg import norm
 
-# Function to load the Random Forest model for angle features
+# Function to load the Random Forest model
 @st.cache_resource
-def load_angle_model():
+def load_model():
     try:
         return joblib.load('best_random_forest_model.pkl')
     except Exception as e:
-        st.error(f"Error loading angle model: {e}")
+        st.error(f"Error loading model: {e}")
         return None
 
-# Function to load the Random Forest model for distance features
-@st.cache_resource
-def load_distance_model():
-    try:
-        return joblib.load('distance_model.pkl')
-    except Exception as e:
-        st.error(f"Error loading distance model: {e}")
-        return None
+# Load the model using the cached function
+model = load_model()
 
-# Load models using the cached functions
-angle_model = load_angle_model()
-distance_model = load_distance_model()
-
-# Ensure models are loaded before proceeding
-if angle_model is None or distance_model is None:
+# Ensure the model is loaded before proceeding
+if model is None:
     st.stop()
 
 # Initialize MediaPipe Hands
@@ -94,14 +84,14 @@ if uploaded_file is not None:
                 angle_columns = [f'angle_{i}' for i in range(len(angles))]
                 angles_df = pd.DataFrame([angles], columns=angle_columns)
                 
-                # Predict the alphabet using the angle model
-                probabilities = angle_model.predict_proba(angles_df)[0]
+                # Predict the alphabet
+                probabilities = model.predict_proba(angles_df)[0]
                 top_indices = np.argsort(probabilities)[::-1][:5]
                 top_probabilities = probabilities[top_indices]
-                top_classes = angle_model.classes_[top_indices]
+                top_classes = model.classes_[top_indices]
                 
                 # Display the top 5 predictions
-                st.write("Top 5 Predicted Alphabets (Angle Model):")
+                st.write("Top 5 Predicted Alphabets:")
                 for i in range(5):
                     st.write(f"{top_classes[i]}: {top_probabilities[i]:.2f}")
             
