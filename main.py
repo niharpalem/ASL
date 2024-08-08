@@ -2,7 +2,11 @@ import streamlit as st
 import cv2
 import numpy as np
 import mediapipe as mp
+import joblib
 from numpy.linalg import norm
+
+# Load the trained Random Forest model
+model = joblib.load('best_random_forest_model.pkl')
 
 # Initialize MediaPipe Hands
 @st.cache_resource
@@ -49,9 +53,17 @@ if uploaded_file is not None:
             # Calculate angles
             angles = calculate_angles(landmarks)
             
-            # Display the angles
-            st.write("Calculated Angles:")
-            st.write(angles)
+            # Predict the alphabet
+            angles = np.array(angles).reshape(1, -1)  # Reshape for a single sample
+            probabilities = model.predict_proba(angles)[0]
+            top_indices = np.argsort(probabilities)[::-1][:5]
+            top_probabilities = probabilities[top_indices]
+            top_classes = model.classes_[top_indices]
+            
+            # Display the top 5 predictions
+            st.write("Top 5 Predicted Alphabets:")
+            for i in range(5):
+                st.write(f"{top_classes[i]}: {top_probabilities[i]:.2f}")
         
         # Display the image with landmarks
         st.image(image, caption="Processed Image with Landmarks", use_column_width=True)
