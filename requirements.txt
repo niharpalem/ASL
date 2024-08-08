@@ -3,7 +3,7 @@ opencv-python-headless
 mediapipe
 numpy
 scipy
-scikit-learn
+scikit-learn==1.0.2
 joblib
 matplotlib
 lightgbm
