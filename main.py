@@ -33,13 +33,17 @@ mp_drawing = mp.solutions.drawing_utils
 
 # Function to normalize landmarks
 def normalize_landmarks(landmarks):
+    # Center the landmarks
     center = np.mean(landmarks, axis=0)
     landmarks_centered = landmarks - center
-    max_distance = np.max(np.linalg.norm(landmarks_centered, axis=1))
-    if max_distance > 0:
-        landmarks_normalized = landmarks_centered / max_distance
-    else:
-        landmarks_normalized = landmarks_centered
+
+    # Scale the landmarks to unit variance
+    std_dev = np.std(landmarks_centered, axis=0)
+    landmarks_normalized = landmarks_centered / std_dev
+
+    # Replace NaN values with 0 (in case of division by zero)
+    landmarks_normalized = np.nan_to_num(landmarks_normalized)
+
     return landmarks_normalized
 
 # Function to calculate angles between landmarks
