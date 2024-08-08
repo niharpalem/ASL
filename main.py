@@ -7,16 +7,13 @@ from scipy.spatial.distance import euclidean
 from numpy.linalg import norm
 import matplotlib.pyplot as plt
 
-# Load the saved models and preprocessing objects
+# Load the saved Random Forest model
 @st.cache_resource
-def load_models():
-    svm_model = joblib.load('svm_model.joblib')
-    lgbm_model = joblib.load('lgbm_model.joblib')
-    scaler = joblib.load('scaler.joblib')
-    pca = joblib.load('pca.joblib')
-    return svm_model, lgbm_model, scaler, pca
+def load_model():
+    rf_model = joblib.load('best_random_forest_model.pkl')
+    return rf_model
 
-svm_model, lgbm_model, scaler, pca = load_models()
+rf_model = load_model()
 
 # Initialize and cache MediaPipe Hands
 @st.cache_resource
@@ -26,35 +23,6 @@ def load_mediapipe_model():
 
 hands = load_mediapipe_model()
 mp_drawing = mp.solutions.drawing_utils
-
-# Function to calculate distances
-def calculate_distances(landmarks):
-    distances = []
-    pairs = [
-        (0, [2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20]),
-        (1, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (2, [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (3, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (4, [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (5, [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (6, [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (7, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (8, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (9, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (10, [12, 13, 14, 15, 16, 17, 18, 19, 20]),
-        (11, [13, 14, 15, 16, 17, 18, 19, 20]),
-        (12, [13, 14, 15, 16, 17, 18, 19, 20]),
-        (13, [15, 16, 17, 18, 19, 20]),
-        (14, [16, 17, 18, 19, 20]),
-        (15, [17, 18, 19, 20]),
-        (16, [17, 18, 19, 20]),
-        (17, [19, 20]),
-        (18, [20])
-    ]
-    for start, ends in pairs:
-        for end in ends:
-            distances.append(euclidean(landmarks[start], landmarks[end]))
-    return distances
 
 # Function to calculate angles
 def calculate_angles(landmarks):
@@ -97,28 +65,15 @@ if uploaded_file is not None:
         landmarks[:, 0] = (landmarks[:, 0] - landmarks[:, 0].min()) / (landmarks[:, 0].max() - landmarks[:, 0].min())
         landmarks[:, 1] = (landmarks[:, 1] - landmarks[:, 1].min()) / (landmarks[:, 1].max() - landmarks[:, 1].min())
 
-        # Calculate distances and angles
-        distances = calculate_distances(landmarks)
+        # Calculate angles
         angles = calculate_angles(landmarks)
 
-        # Combine features
-        features = np.array(distances + angles).reshape(1, -1)
+        # Convert angles to a feature array
+        features = np.array(angles).reshape(1, -1)
 
-        # Scale features
-        features_scaled = scaler.transform(features)
-
-        # Apply PCA
-        features_pca = pca.transform(features_scaled)
-
-        # Get predictions from both models
-        svm_prediction = svm_model.predict(features_pca)
-        svm_probabilities = svm_model.predict_proba(features_pca)[0]
-        lgbm_prediction = lgbm_model.predict(features_pca)
-        lgbm_probabilities = lgbm_model.predict_proba(features_pca)[0]
-
-        # Concatenate results
-        combined_probabilities = (svm_probabilities + lgbm_probabilities) / 2
-        combined_prediction = np.argmax(combined_probabilities)
+        # Get predictions from the Random Forest model
+        rf_prediction = rf_model.predict(features)
+        rf_probabilities = rf_model.predict_proba(features)[0]
 
         # Draw hand landmarks on the image
         mp_drawing.draw_landmarks(image_rgb, hand_landmarks, mp.solutions.hands.HAND_CONNECTIONS)
@@ -140,8 +95,8 @@ if uploaded_file is not None:
 
         # Plot the word probabilities
         alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        ax3.bar(alphabet, combined_probabilities)
-        ax3.set_title('Combined Word Probabilities')
+        ax3.bar(alphabet, rf_probabilities)
+        ax3.set_title('Random Forest Word Probabilities')
         ax3.set_xlabel('Letters')
         ax3.set_ylabel('Probability')
         ax3.tick_params(axis='x', rotation=90)
@@ -152,21 +107,13 @@ if uploaded_file is not None:
         results_placeholder.pyplot(fig)
 
         # Display the predicted letter
-        st.write(f"Combined Prediction: {alphabet[combined_prediction]}")
-        
-        st.write("SVM Prediction:")
-        st.write(f"- Class: {svm_prediction[0]}")
-        st.write(f"- Probabilities: {svm_probabilities}")
-        
-        st.write("LightGBM Prediction:")
-        st.write(f"- Class: {lgbm_prediction[0]}")
-        st.write(f"- Probabilities: {lgbm_probabilities}")
+        st.write(f"Random Forest Prediction: {alphabet[rf_prediction[0]]}")
         
         # Display top 3 predictions
-        top_3_indices = np.argsort(combined_probabilities)[-3:][::-1]
+        top_3_indices = np.argsort(rf_probabilities)[-3:][::-1]
         st.write("Top 3 Predictions:")
         for idx in top_3_indices:
-            st.write(f"{alphabet[idx]}: {combined_probabilities[idx]:.4f}")
+            st.write(f"{alphabet[idx]}: {rf_probabilities[idx]:.4f}")
 
     else:
         st.write("No hand detected in the image.")
