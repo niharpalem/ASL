@@ -3,9 +3,9 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import joblib
+import matplotlib.pyplot as plt
 from scipy.spatial.distance import euclidean
 from numpy.linalg import norm
-import matplotlib.pyplot as plt
 
 # Load the saved Random Forest model
 @st.cache_resource
